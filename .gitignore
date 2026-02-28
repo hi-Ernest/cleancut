@@ -1,0 +1,43 @@
+# 环境变量（含 API Key，绝对不提交）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# 工作目录（中间产物，体积大）
+*_workdir/
+
+# 音视频文件
+*.mp4
+*.mov
+*.m4a
+*.wav
+*.mp3
+*.aac
+*.flac
+*.mkv
+*.avi
+*.webm
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Whisper 本地模型缓存（体积极大）
+models/
+*.bin
+*.pt

@@ -1,0 +1,18 @@
+# optmpx 依赖
+
+# LLM 客户端 (DeepSeek-V3 使用 OpenAI 兼容接口)
+openai
+
+# 音频读写
+soundfile
+numpy
+
+# 降噪
+noisereduce
+scipy
+
+# 本地 Whisper 转录 (推荐)
+faster-whisper
+
+# (可选) 如果需要 Anthropic Claude
+# anthropic
