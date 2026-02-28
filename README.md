@@ -4,11 +4,22 @@
 
 > AI-powered filler-word removal pipeline — automatically detects and cuts filler words, producing clean subtitles and media files
 
+## Screenshots
+
+| Landing Page | Upload |
+|:---:|:---:|
+| ![Landing](docs/screenshots/01-landing.png) | ![Upload](docs/screenshots/02-upload.png) |
+
+| Processing | Editor |
+|:---:|:---:|
+| ![Processing](docs/screenshots/03-processing.png) | ![Editor](docs/screenshots/04-editor.png) |
+
 ## Features
 
 - **Word-level precision editing**: Uses Whisper word-level timestamps to remove filler words with millisecond accuracy
 - **LLM semantic understanding**: Uses DeepSeek / OpenAI-compatible models to accurately distinguish meaningful words from filler sounds
 - **Fully automated pipeline**: Video/Audio → Denoising → Transcription → Cleaning → Editing, all in a single command
+- **Web UI**: Browser-based editor with real-time progress tracking, interactive transcript editing, video preview, and one-click export
 - **Result caching**: Intermediate results are automatically cached at each stage; interrupted runs can resume from the last failure point
 - **Dual output**: Cleaned SRT subtitles + cleaned audio/video file
 
@@ -55,6 +66,17 @@ cp .env.example .env
 ```
 
 ### 4. Run
+
+#### Web UI
+
+```bash
+python server.py
+# Open http://localhost:8765 in your browser
+```
+
+Upload a file, wait for processing, then interactively edit the transcript and export the cleaned video or subtitles.
+
+#### Command Line
 
 ```bash
 # Process a video (full pipeline)
@@ -116,10 +138,22 @@ After processing, the working directory `{filename}_workdir/` contains intermedi
 | `06_output.srt` | Cleaned subtitle file |
 | `07_edited.*` | Cleaned audio or video |
 
+## Web UI
+
+The web interface provides a visual editing experience for non-technical users:
+
+- **Upload**: Drag-and-drop or click to upload video/audio files
+- **Real-time progress**: Server-Sent Events stream each pipeline step (extract → denoise → transcribe → clean → subtitle → render)
+- **Interactive transcript**: Every word is displayed with keep/remove status; click to toggle individual words
+- **Side-by-side preview**: Switch between original and cleaned video with synced playback
+- **Regenerate**: After toggling words, regenerate the cleaned video in one click
+- **Export**: Download the cleaned video file or SRT subtitle file
+
 ## Project Structure
 
 ```
 cleancut/
+├── server.py            # FastAPI web server
 ├── pipeline.py          # Main pipeline entry point
 ├── config.py            # Global configuration (environment variable loading)
 ├── transcribe.py        # Whisper transcription (local / API)
@@ -128,6 +162,9 @@ cleancut/
 ├── audio.py             # Audio extraction and denoising
 ├── subtitle.py          # SRT subtitle export
 ├── cache.py             # Intermediate result caching
+├── ui/
+│   ├── index.html       # Landing page
+│   └── app.html         # Editor UI
 ├── requirements.txt     # Python dependencies
 └── .env.example         # Environment variable template
 ```
@@ -138,6 +175,8 @@ cleancut/
 - **[FFmpeg](https://ffmpeg.org/)**: Audio/video processing
 - **[noisereduce](https://github.com/timsainb/noisereduce)**: Audio denoising
 - **[openai](https://github.com/openai/openai-python)**: LLM interface (compatible with DeepSeek / OpenAI)
+- **[FastAPI](https://fastapi.tiangolo.com/)**: Web server framework
+- **[uvicorn](https://www.uvicorn.org/)**: ASGI server
 
 ## License
 

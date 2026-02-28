@@ -4,11 +4,22 @@
 
 > AI 驱动的口语净化流水线 — 自动识别并剪除语气词，输出净化字幕与媒体文件
 
+## 界面预览
+
+| 落地页 | 上传 |
+|:---:|:---:|
+| ![落地页](docs/screenshots/01-landing.png) | ![上传](docs/screenshots/02-upload.png) |
+
+| 处理中 | 编辑器 |
+|:---:|:---:|
+| ![处理中](docs/screenshots/03-processing.png) | ![编辑器](docs/screenshots/04-editor.png) |
+
 ## 功能特性
 
 - **词级别精准剪辑**：基于 Whisper 词级别时间戳，在毫秒级精度上切除语气词
 - **LLM 语义理解**：使用 DeepSeek / OpenAI 兼容模型，准确区分有意义的词与填充音
 - **全流程自动化**：视频/音频 → 降噪 → 转录 → 净化 → 剪辑，一条命令完成
+- **Web 可视化编辑器**：浏览器端编辑界面，支持实时进度追踪、交互式逐词编辑、视频预览与一键导出
 - **结果缓存**：各阶段中间结果自动缓存，中断后可从失败处继续
 - **双输出**：净化后的 SRT 字幕 + 净化后的音视频文件
 
@@ -55,6 +66,17 @@ cp .env.example .env
 ```
 
 ### 4. 运行
+
+#### Web 界面
+
+```bash
+python server.py
+# 在浏览器中打开 http://localhost:8765
+```
+
+上传文件后等待处理完成，即可交互式编辑逐字稿并导出净化后的视频或字幕。
+
+#### 命令行
 
 ```bash
 # 处理视频（完整流程）
@@ -116,10 +138,22 @@ LLM_API_KEY=sk-xxx
 | `06_output.srt` | 净化后字幕文件 |
 | `07_edited.*` | 净化后的音频或视频 |
 
+## Web 编辑器
+
+Web 界面为非技术用户提供可视化编辑体验：
+
+- **上传**：拖拽或点击上传视频/音频文件
+- **实时进度**：通过 SSE 实时展示各处理阶段（提取 → 降噪 → 转录 → 净化 → 字幕 → 合成）
+- **交互式逐字稿**：逐词展示保留/删除状态，点击即可切换单个词的状态
+- **对比预览**：在原始视频与净化视频间切换，同步播放对比效果
+- **重新生成**：调整词语状态后，一键重新生成净化视频
+- **导出**：下载净化后的视频文件或 SRT 字幕文件
+
 ## 项目结构
 
 ```
 cleancut/
+├── server.py            # FastAPI Web 服务器
 ├── pipeline.py          # 主流水线入口
 ├── config.py            # 全局配置（环境变量读取）
 ├── transcribe.py        # Whisper 转录（本地 / API）
@@ -128,6 +162,9 @@ cleancut/
 ├── audio.py             # 音频提取与降噪
 ├── subtitle.py          # SRT 字幕导出
 ├── cache.py             # 中间产物缓存
+├── ui/
+│   ├── index.html       # 落地页
+│   └── app.html         # 编辑器界面
 ├── requirements.txt     # Python 依赖
 └── .env.example         # 环境变量模板
 ```
@@ -138,6 +175,8 @@ cleancut/
 - **[FFmpeg](https://ffmpeg.org/)**：音视频处理
 - **[noisereduce](https://github.com/timsainb/noisereduce)**：音频降噪
 - **[openai](https://github.com/openai/openai-python)**：LLM 接口（兼容 DeepSeek / OpenAI）
+- **[FastAPI](https://fastapi.tiangolo.com/)**：Web 服务器框架
+- **[uvicorn](https://www.uvicorn.org/)**：ASGI 服务器
 
 ## License
 
