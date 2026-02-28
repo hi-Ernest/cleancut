@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CleanCut</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Noto+Serif+SC:wght@300;400;600&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #F5EDD8;
+    --bg2:      #EDE3C8;
+    --surface:  #FAF4E8;
+    --ink:      #2C1A0E;
+    --ink-mid:  #5C3D28;
+    --ink-pale: #B89E88;
+    --amber:    #C8860A;
+    --amber2:   #A06808;
+    --amber-lt: #E8A830;
+    --amber-bg: rgba(200,134,10,0.08);
+    --red:      #9B2B1A;
+    --red-bg:   rgba(155,43,26,0.07);
+    --red-line: rgba(155,43,26,0.35);
+    --green:    #4A7A3A;
+    --green-bg: rgba(74,122,58,0.08);
+    --border:   rgba(44,26,14,0.10);
+    --border2:  rgba(44,26,14,0.06);
+    --mono:     'DM Mono', monospace;
+    --serif:    'Cormorant Garamond', 'Noto Serif SC', Georgia, serif;
+    --display:  'Playfair Display', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: repeating-linear-gradient(
+      0deg, transparent, transparent 28px,
+      rgba(44,26,14,0.018) 28px, rgba(44,26,14,0.018) 29px
+    );
+    pointer-events: none; z-index: 0;
+  }
+
+  #paper-grain {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    mix-blend-mode: multiply;
+  }
+
+  .screen { display: none; height: 100vh; position: relative; z-index: 1; }
+  .screen.active { display: flex; }
+
+  /* ── Shared ─────────────────────────────────────────── */
+  .eyebrow {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--amber);
+    font-weight: 500;
+  }
+  .eyebrow::before {
+    content: ''; display: block;
+    width: 32px; height: 1px;
+    background: linear-gradient(90deg, var(--amber), transparent);
+    flex-shrink: 0;
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--amber2);
+    background: var(--amber-bg);
+    padding: 3px 8px;
+    border: 1px solid rgba(200,134,10,0.18);
+    font-family: var(--mono);
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    white-space: nowrap; flex-shrink: 0;
+    position: relative;
+  }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--ink); color: var(--bg); border: none;
+    padding: 8px 18px;
+  }
+  .btn-primary::before, .btn-primary::after {
+    content: ''; position: absolute;
+    width: 6px; height: 6px; transition: all 0.2s; opacity: 0;
+  }
+  .btn-primary::before { top:-2px;left:-2px; border-top:2px solid var(--amber-lt); border-left:2px solid var(--amber-lt); }
+  .btn-primary::after  { bottom:-2px;right:-2px; border-bottom:2px solid var(--amber-lt); border-right:2px solid var(--amber-lt); }
+  .btn-primary:hover:not(:disabled) { background: var(--amber2); transform: translateY(-2px); }
+  .btn-primary:hover::before, .btn-primary:hover::after { opacity:1; width:9px; height:9px; }
+
+  .btn-ghost {
+    background: transparent; color: var(--ink-mid);
+    border: 1px solid var(--border); padding: 7px 16px;
+  }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+
+  .btn-amber {
+    background: var(--amber); color: var(--ink); border: none;
+    padding: 8px 18px; font-weight: 500;
+  }
+  .btn-amber:hover:not(:disabled) { background: var(--amber2); color: var(--bg); transform: translateY(-2px); }
+
+  /* ═══ SCREEN 1: UPLOAD ══════════════════════════════════ */
+  #screen-upload {
+    flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+
+  .upload-brand {
+    font-family: var(--display);
+    font-size: 48px; font-weight: 900;
+    letter-spacing: -0.03em;
+    margin-bottom: 48px;
+  }
+  .upload-brand em { font-style: italic; color: var(--amber); }
+
+  .drop-zone {
+    width: 480px; max-width: 90vw;
+    border: 1.5px dashed rgba(200,134,10,0.35);
+    background: var(--surface);
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragging {
+    border-color: var(--amber);
+    background: var(--amber-bg);
+  }
+  .drop-zone.dragging { transform: scale(1.01); }
+
+  .drop-zone::before, .drop-zone::after {
+    content: ''; position: absolute;
+    width: 14px; height: 14px; transition: all 0.2s; opacity: 0;
+  }
+  .drop-zone::before { top:8px;left:8px; border-top:1.5px solid var(--amber); border-left:1.5px solid var(--amber); }
+  .drop-zone::after  { bottom:8px;right:8px; border-bottom:1.5px solid var(--amber); border-right:1.5px solid var(--amber); }
+  .drop-zone:hover::before, .drop-zone:hover::after { opacity:1; width:20px; height:20px; }
+
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+
+  .drop-icon {
+    width: 56px; height: 56px;
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+    background: var(--surface);
+    transition: all 0.2s;
+  }
+  .drop-icon svg { transition: stroke 0.2s; }
+  .drop-zone:hover .drop-icon { border-color: var(--amber); }
+  .drop-zone:hover .drop-icon svg { stroke: var(--amber); }
+
+  .drop-title {
+    font-family: var(--display);
+    font-size: 20px; font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .drop-hint {
+    font-family: var(--serif);
+    font-size: 16px; color: var(--ink-mid);
+    margin-bottom: 20px;
+  }
+  .drop-formats {
+    display: flex; gap: 6px;
+    justify-content: center; flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .drop-browse {
+    background: var(--ink); color: var(--bg); border: none;
+    padding: 10px 24px;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    position: relative;
+  }
+  .drop-browse::before, .drop-browse::after {
+    content: ''; position: absolute;
+    width: 6px; height: 6px; transition: all 0.2s; opacity: 0;
+  }
+  .drop-browse::before { top:-2px;left:-2px; border-top:2px solid var(--amber); border-left:2px solid var(--amber); }
+  .drop-browse::after  { bottom:-2px;right:-2px; border-bottom:2px solid var(--amber); border-right:2px solid var(--amber); }
+  .drop-browse:hover { background: var(--amber2); transform: translateY(-2px); }
+  .drop-browse:hover::before, .drop-browse:hover::after { opacity:1; width:9px; height:9px; }
+
+  /* ═══ SCREEN 2: PROCESSING ═════════════════════════════ */
+  #screen-processing {
+    flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+
+  .proc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 40px 44px;
+    width: 680px; max-width: 92vw;
+    box-shadow: 8px 8px 0px var(--bg2);
+    position: relative;
+  }
+  .proc-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--amber), transparent);
+  }
+
+  .proc-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 8px;
+  }
+  .proc-dots { display: flex; gap: 6px; }
+  .proc-dots .dot { width: 9px; height: 9px; }
+  .dot-r { background: var(--red); }
+  .dot-y { background: var(--amber-lt); }
+  .dot-g { background: var(--green); }
+
+  .proc-filename {
+    font-family: var(--mono);
+    font-size: 12px; color: var(--amber);
+    letter-spacing: 0.04em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .proc-sub {
+    font-family: var(--serif);
+    font-size: 18px; color: var(--ink-mid);
+    font-style: italic;
+    margin-bottom: 32px;
+    text-align: center;
+  }
+
+  .proc-steps {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    position: relative;
+    margin-bottom: 16px;
+  }
+  .proc-steps::before {
+    content: ''; position: absolute;
+    top: 28px; left: calc(100%/12); right: calc(100%/12);
+    height: 1px; background: var(--border);
+  }
+
+  .step {
+    display: flex; flex-direction: column;
+    align-items: center; text-align: center;
+    padding: 0 4px; position: relative; z-index: 1;
+  }
+
+  .step-icon {
+    width: 56px; height: 56px;
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg2);
+    margin-bottom: 10px;
+    transition: all 0.2s;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .step-icon .step-svg {
+    width: 24px; height: 24px;
+    stroke: var(--ink-pale); fill: none; stroke-width: 1.5;
+    transition: stroke 0.2s;
+  }
+
+  .step-num {
+    position: absolute; top: -6px; right: -6px;
+    width: 16px; height: 16px;
+    background: var(--border);
+    color: var(--ink-pale);
+    font-size: 9px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    transition: all 0.2s;
+    z-index: 2;
+  }
+
+  .step-label {
+    font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--ink-pale); transition: color 0.2s;
+  }
+
+  .step.done .step-icon { border-color: var(--green); background: var(--green-bg); }
+  .step.done .step-icon .step-svg { stroke: var(--green); }
+  .step.done .step-num { background: var(--green); color: #fff; }
+  .step.done .step-label { color: var(--green); }
+
+  .step.active .step-icon { border-color: var(--amber); background: var(--amber-bg); }
+  .step.active .step-icon .step-svg { stroke: var(--amber); }
+  .step.active .step-num { background: var(--amber); color: var(--ink); }
+  .step.active .step-label { color: var(--amber); }
+  .step.active .step-icon::after {
+    content: ''; position: absolute;
+    bottom: 0; left: 16px; right: 16px;
+    height: 2px; background: var(--amber);
+  }
+
+  /* ═══ SCREEN 3: EDIT (Modal) ═══════════════════════════ */
+  #screen-edit {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: 1100px;
+    max-height: calc(100vh - 48px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 8px 8px 0px var(--bg2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .modal::before, .modal::after {
+    content: ''; position: absolute;
+    width: 10px; height: 10px; opacity: 0.3;
+  }
+  .modal::before { top:6px;left:6px; border-top:1.5px solid var(--amber); border-left:1.5px solid var(--amber); }
+  .modal::after  { bottom:6px;right:6px; border-bottom:1.5px solid var(--amber); border-right:1.5px solid var(--amber); }
+
+  /* Titlebar */
+  .modal-titlebar {
+    height: 48px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .title-dots { display: flex; gap: 6px; }
+  .title-dots .dot { width: 9px; height: 9px; }
+
+  .title-brand {
+    font-family: var(--display);
+    font-size: 16px; font-weight: 900;
+    letter-spacing: -0.02em;
+  }
+  .title-brand em { font-style: italic; color: var(--amber); }
+  .title-sep {
+    font-family: var(--mono);
+    font-size: 12px; color: var(--ink-pale);
+    margin: 0 2px;
+  }
+  .title-file {
+    font-family: var(--mono);
+    font-size: 11px; color: var(--ink-pale);
+    letter-spacing: 0.04em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 180px;
+  }
+
+  .topbar-stats {
+    font-size: 11px; color: var(--ink-pale);
+    margin-left: auto;
+  }
+  .topbar-stats .hl {
+    font-family: var(--display); font-weight: 700;
+    font-size: 14px; color: var(--amber);
+    letter-spacing: -0.02em;
+  }
+
+  .btn-close {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid var(--border);
+    cursor: pointer; transition: all 0.2s;
+    margin-left: 8px; flex-shrink: 0;
+  }
+  .btn-close:hover { border-color: var(--amber); }
+  .btn-close:hover svg { stroke: var(--amber); }
+
+  /* Stats Row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .stat-cell {
+    padding: 16px 12px; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .stat-cell:last-child { border-right: none; }
+  .stat-val {
+    font-family: var(--display);
+    font-size: 28px; font-weight: 700;
+    font-style: italic;
+    color: var(--amber); line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px; color: var(--ink-pale);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Video Tabs (full width) */
+  .video-tabs {
+    display: flex; align-items: center; gap: 0;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .video-tab {
+    padding: 10px 20px;
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-pale);
+    background: none; border: none;
+    cursor: pointer; transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+    position: relative; bottom: -1px;
+  }
+  .video-tab:hover { color: var(--ink-mid); }
+  .video-tab.active {
+    color: var(--amber); font-weight: 500;
+    border-bottom-color: var(--amber);
+  }
+  .tab-hint {
+    margin-left: auto;
+    padding-right: 20px;
+    font-family: var(--serif);
+    font-size: 14px; font-style: italic;
+    color: var(--ink-pale);
+  }
+
+  /* Content Area */
+  .edit-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+  .panel-left {
+    width: 55%; min-width: 280px;
+    display: flex; flex-direction: column;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+  }
+
+  .video-wrap {
+    flex: 1;
+    background: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    position: relative;
+    min-height: 200px;
+  }
+  .video-wrap video { width: 100%; height: 100%; object-fit: contain; }
+
+  .player-controls {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .btn-play {
+    width: 32px; height: 32px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .btn-play:hover { border-color: var(--amber); }
+  .btn-play svg { pointer-events: none; stroke: var(--ink-mid); transition: stroke 0.15s; }
+  .btn-play:hover svg { stroke: var(--amber); }
+
+  .time-label { font-family: var(--mono); font-size: 11px; color: var(--ink-pale); letter-spacing: 0.04em; }
+  .speed-toggle {
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
+    color: var(--ink-pale); background: none;
+    border: 1px solid var(--border);
+    padding: 3px 8px; cursor: pointer; transition: all 0.15s;
+  }
+  .speed-toggle:hover { border-color: var(--amber); color: var(--amber); }
+
+  .timeline-wrap { padding: 0 16px 10px; flex-shrink: 0; }
+  .timeline-times {
+    display: flex; justify-content: space-between;
+    font-size: 9px; color: var(--ink-pale);
+    letter-spacing: 0.04em; margin-bottom: 4px;
+  }
+  .timeline-bar {
+    width: 100%; height: 32px;
+    overflow: visible;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    cursor: pointer; position: relative;
+  }
+  .timeline-bar canvas { width: 100%; height: 100%; display: block; }
+  .timeline-playhead {
+    position: absolute; top: 0; bottom: 0;
+    width: 2px; background: var(--amber);
+    pointer-events: none;
+    transition: left 0.08s linear;
+  }
+  .tl-tooltip {
+    display: none;
+    position: absolute;
+    top: -24px;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* Right panel: transcript */
+  .panel-right {
+    flex: 1;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+    background-image: repeating-linear-gradient(
+      0deg, transparent, transparent 28px,
+      rgba(44,26,14,0.018) 28px, rgba(44,26,14,0.018) 29px
+    );
+  }
+
+  .transcript-bar {
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .transcript-bar .eyebrow { margin-bottom: 0; }
+
+  .legend {
+    display: flex; align-items: center; gap: 14px;
+    font-size: 10px; color: var(--ink-pale);
+    letter-spacing: 0.04em;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 10px; height: 10px; border: 1px solid; }
+  .legend-swatch.s-remove { background: var(--red-bg); border-color: var(--red-line); }
+  .legend-swatch.s-keep { background: var(--bg2); border-color: var(--border); }
+
+  .transcript-scroll {
+    flex: 1; overflow-y: auto;
+    padding: 24px 28px 40px;
+  }
+  .transcript-scroll::-webkit-scrollbar { width: 4px; }
+  .transcript-scroll::-webkit-scrollbar-thumb { background: rgba(44,26,14,0.12); }
+
+  #transcript-content {
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 2.0;
+    color: var(--ink);
+    max-width: 560px;
+    font-weight: 400;
+  }
+
+  .w {
+    display: inline;
+    cursor: pointer;
+    padding: 1px 3px;
+    border-radius: 2px;
+    transition: background 0.12s, color 0.12s;
+  }
+  .w.keep:hover { background: var(--amber-bg); color: var(--amber2); }
+  .w.remove {
+    color: var(--red);
+    text-decoration: line-through;
+    text-decoration-color: var(--red-line);
+    text-decoration-thickness: 1.5px;
+    opacity: 0.6;
+  }
+  .w.remove:hover { background: rgba(155,43,26,0.08); opacity: 0.9; }
+  .w.current {
+    background: var(--amber) !important;
+    color: var(--ink) !important;
+    text-decoration: none !important;
+    opacity: 1 !important;
+  }
+
+  .transcript-actions {
+    padding: 10px 24px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .regen-hint {
+    font-size: 10px; color: var(--amber);
+    display: none; align-items: center; gap: 5px;
+    letter-spacing: 0.04em;
+  }
+  .regen-hint.visible { display: flex; }
+
+  /* Export Row */
+  .export-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .export-card {
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .export-card:last-child { border-right: none; }
+  .export-card:hover { background: var(--amber-bg); }
+  .export-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-pale);
+    margin-bottom: 2px;
+  }
+  .export-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .export-size {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    margin-top: 1px;
+  }
+
+  /* ═══ OVERLAYS ══════════════════════════════════════════ */
+  .overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(245,237,216,0.88);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+  }
+  .overlay.active { display: flex; }
+  .overlay-bar {
+    width: 40px; height: 2px;
+    background: var(--amber);
+  }
+  .overlay-text { font-family: var(--serif); font-size: 16px; color: var(--ink-mid); font-style: italic; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: var(--ink); color: var(--bg);
+    padding: 8px 20px;
+    font-size: 11px; letter-spacing: 0.04em;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none; z-index: 200; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="paper-grain" aria-hidden="true"></div>
+
+<!-- ═══ UPLOAD ════════════════════════════════════════════ -->
+<div id="screen-upload" class="screen active">
+  <div class="upload-brand">Clean<em>Cut</em></div>
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept="video/*,audio/*,.mp4,.mov,.m4a,.wav,.mp3">
+    <div class="drop-icon">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v14"/><path d="M8 10l6-6 6 6"/><path d="M4 20v4h20v-4"/></svg>
+    </div>
+    <div class="drop-title">拖拽文件到这里</div>
+    <div class="drop-hint">视频或音频，支持常见格式</div>
+    <div class="drop-formats">
+      <span class="tag">mp4</span>
+      <span class="tag">mov</span>
+      <span class="tag">m4a</span>
+      <span class="tag">wav</span>
+    </div>
+    <button class="drop-browse" type="button" id="browse-btn">选择文件</button>
+  </div>
+</div>
+
+<!-- ═══ PROCESSING ════════════════════════════════════════ -->
+<div id="screen-processing" class="screen">
+  <div class="proc-card">
+    <div class="proc-header">
+      <div class="proc-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+      <span class="proc-filename" id="proc-filename">—</span>
+    </div>
+    <div class="proc-sub" id="proc-sub">正在处理，请稍候…</div>
+    <div class="proc-steps" id="steps-container"></div>
+  </div>
+</div>
+
+<!-- ═══ EDIT (Modal) ═════════════════════════════════════ -->
+<div id="screen-edit" class="screen">
+  <div class="modal">
+    <!-- Titlebar -->
+    <div class="modal-titlebar">
+      <div class="title-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+      <div class="title-brand">Clean<em>Cut</em></div>
+      <span class="title-sep">—</span>
+      <div class="title-file" id="edit-filename">Import</div>
+      <div class="topbar-stats" id="topbar-stats"></div>
+      <button class="btn btn-ghost" id="btn-export-srt">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="M6 9l4 4 4-4"/><path d="M3 15v2h14v-2"/></svg>
+        字幕
+      </button>
+      <button class="btn btn-primary" id="btn-export-video">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10"/><path d="M6 9l4 4 4-4"/><path d="M3 15v2h14v-2"/></svg>
+        导出
+      </button>
+      <button class="btn-close" id="btn-close-modal">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="5" y1="5" x2="15" y2="15"/><line x1="15" y1="5" x2="5" y2="15"/></svg>
+      </button>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-cell"><div class="stat-val" id="sv-count">0</div><div class="stat-label">Fillers Removed</div></div>
+      <div class="stat-cell"><div class="stat-val" id="sv-saved">0s</div><div class="stat-label">Time Saved</div></div>
+      <div class="stat-cell"><div class="stat-val" id="sv-pct">0%</div><div class="stat-label">Accuracy</div></div>
+      <div class="stat-cell"><div class="stat-val" id="sv-length">0:00</div><div class="stat-label">Final Length</div></div>
+    </div>
+
+    <!-- Video Tabs -->
+    <div class="video-tabs">
+      <button class="video-tab active" data-mode="preview">净化版</button>
+      <button class="video-tab" data-mode="original">原始</button>
+      <span class="tab-hint">Click any word to seek ›</span>
+    </div>
+
+    <!-- Content -->
+    <div class="edit-body">
+      <div class="panel-left">
+        <div class="video-wrap">
+          <video id="video-player" preload="metadata"></video>
+        </div>
+        <div class="player-controls">
+          <button class="btn-play" id="btn-play">
+            <svg id="icon-play" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 3.5l10 6.5-10 6.5z"/></svg>
+            <svg id="icon-pause" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><line x1="7" y1="4" x2="7" y2="16"/><line x1="13" y1="4" x2="13" y2="16"/></svg>
+          </button>
+          <span class="time-label" id="time-label">0:00 / 0:00</span>
+          <span style="flex:1"></span>
+          <button class="speed-toggle" id="speed-btn">1×</button>
+        </div>
+        <div class="timeline-wrap">
+          <div class="timeline-times"><span id="tl-s">0:00</span><span id="tl-e">—</span></div>
+          <div class="timeline-bar" id="timeline-bar">
+            <canvas id="timeline-canvas"></canvas>
+            <div class="timeline-playhead" id="playhead" style="left:0"></div>
+            <div class="tl-tooltip" id="tl-tooltip"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-right">
+        <div class="transcript-bar">
+          <div class="eyebrow">逐字稿 · 点击切换</div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-swatch s-remove"></div>删除</div>
+            <div class="legend-item"><div class="legend-swatch s-keep"></div>保留</div>
+          </div>
+        </div>
+        <div class="transcript-scroll">
+          <div id="transcript-content"></div>
+        </div>
+        <div class="transcript-actions">
+          <div class="regen-hint" id="regen-hint">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10a8 8 0 0114-5"/><path d="M18 10a8 8 0 01-14 5"/><path d="M2 2v5h4"/><path d="M18 18v-5h-4"/></svg>
+            <span>标记已修改</span>
+          </div>
+          <span style="flex:1"></span>
+          <button class="btn btn-amber" id="btn-regen" style="display:none">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10a8 8 0 0114-5"/><path d="M18 10a8 8 0 01-14 5"/><path d="M2 2v5h4"/><path d="M18 18v-5h-4"/></svg>
+            重新生成
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Row -->
+    <div class="export-row">
+      <div class="export-card" id="card-export-video">
+        <div class="export-label">Video File</div>
+        <div class="export-name" id="export-video-name">—</div>
+      </div>
+      <div class="export-card" id="card-export-srt">
+        <div class="export-label">Subtitle File</div>
+        <div class="export-name" id="export-srt-name">—</div>
+      </div>
+      <div class="export-card" id="btn-start-new">
+        <div class="export-label">Start New</div>
+        <div class="export-name">Import another file</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-bar"></div>
+  <div class="overlay-text" id="overlay-text">处理中…</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function initPaperGrain() {
+  const s = 128, cv = document.createElement('canvas');
+  cv.width = s; cv.height = s;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(s, s);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = Math.random() * 255;
+    img.data[i] = img.data[i+1] = img.data[i+2] = v;
+    img.data[i+3] = 7;
+  }
+  ctx.putImageData(img, 0, 0);
+  const el = document.getElementById('paper-grain');
+  if (el) el.style.backgroundImage = `url(${cv.toDataURL()})`;
+})();
+
+const S = {
+  taskId: null,
+  filename: '',
+  words: [],
+  subtitles: [],
+  stats: {},
+  isVideo: true,
+  duration: 0,
+  speeds: [0.75, 1, 1.25, 1.5, 2],
+  speedIdx: 1,
+  videoMode: 'preview',
+  dirty: false,
+  totalSteps: 6,
+};
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function toast(msg, ms = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), ms);
+}
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  return m + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+}
+function fmtDuration(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m > 0 ? m + 'm ' + sec + 's' : sec + 's';
+}
+
+/* ═══ Upload ═════════════════════════════════════════════ */
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragging');
+  if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
+});
+
+document.getElementById('browse-btn').addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleUpload(fileInput.files[0]); });
+
+async function handleUpload(file) {
+  S.filename = file.name;
+  document.getElementById('proc-filename').textContent = file.name;
+  buildSteps(S.totalSteps);
+  show('screen-processing');
+
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(res.statusText);
+    const { task_id } = await res.json();
+    S.taskId = task_id;
+    trackProgress(task_id);
+  } catch (err) {
+    toast('上传失败：' + err.message);
+    show('screen-upload');
+  }
+}
+
+/* ═══ Processing ═════════════════════════════════════════ */
+const stepData = [
+  { label: '读取', icon: '<rect x="3" y="5" width="22" height="18" rx="1"/><line x1="3" y1="10" x2="25" y2="10"/><line x1="3" y1="18" x2="25" y2="18"/><line x1="8" y1="5" x2="8" y2="10"/><line x1="14" y1="5" x2="14" y2="10"/><line x1="20" y1="5" x2="20" y2="10"/>' },
+  { label: '降噪', icon: '<polygon points="4,6 24,6 16,15 16,23 12,21 12,15"/>' },
+  { label: '转录', icon: '<line x1="5" y1="8" x2="23" y2="8"/><line x1="5" y1="13" x2="23" y2="13"/><line x1="5" y1="18" x2="18" y2="18"/><rect x="18" y="15" width="7" height="7" rx="1"/>' },
+  { label: '标记', icon: '<circle cx="14" cy="14" r="3"/><circle cx="6" cy="7" r="2"/><circle cx="22" cy="7" r="2"/><circle cx="6" cy="21" r="2"/><circle cx="22" cy="21" r="2"/><line x1="14" y1="11" x2="7.4" y2="8.4"/><line x1="14" y1="11" x2="20.6" y2="8.4"/><line x1="14" y1="17" x2="7.4" y2="19.6"/><line x1="14" y1="17" x2="20.6" y2="19.6"/>' },
+  { label: '字幕', icon: '<rect x="3" y="5" width="22" height="18" rx="1"/><line x1="7" y1="15" x2="21" y2="15"/><line x1="7" y1="19" x2="17" y2="19"/>' },
+  { label: '合成', icon: '<circle cx="8" cy="9" r="3"/><circle cx="8" cy="19" r="3"/><line x1="10.5" y1="10.5" x2="22" y2="22"/><line x1="10.5" y1="17.5" x2="16" y2="12"/><line x1="18" y1="10" x2="22" y2="6"/>' },
+];
+
+function buildSteps(n) {
+  const c = document.getElementById('steps-container');
+  c.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const d = stepData[i] || { label: '处理', icon: '' };
+    const el = document.createElement('div');
+    el.className = 'step';
+    el.id = `step-${i + 1}`;
+    el.innerHTML = `<div class="step-icon"><span class="step-num">${i + 1}</span><svg class="step-svg" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">${d.icon}</svg></div><div class="step-label">${d.label}</div>`;
+    c.appendChild(el);
+  }
+}
+
+function setStep(n) {
+  for (let i = 1; i <= S.totalSteps; i++) {
+    const el = document.getElementById(`step-${i}`);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  }
+}
+
+function trackProgress(taskId) {
+  const es = new EventSource(`/api/progress/${taskId}`);
+  es.onmessage = async evt => {
+    const d = JSON.parse(evt.data);
+    if (d.type === 'progress') {
+      if (d.total) S.totalSteps = d.total;
+      setStep(d.step);
+      if (d.message) document.getElementById('proc-sub').textContent = d.message;
+    } else if (d.type === 'done') {
+      es.close();
+      for (let i = 1; i <= S.totalSteps; i++) {
+        const el = document.getElementById(`step-${i}`);
+        if (el) { el.classList.remove('active'); el.classList.add('done'); }
+      }
+      document.getElementById('proc-sub').textContent = '处理完成';
+      await loadResult(taskId);
+    } else if (d.type === 'error') {
+      es.close();
+      toast('处理出错：' + d.message);
+      show('screen-upload');
+    }
+  };
+  es.onerror = () => es.close();
+}
+
+/* ═══ Load result ════════════════════════════════════════ */
+async function loadResult(taskId) {
+  const res = await fetch(`/api/result/${taskId}`);
+  if (!res.ok) { toast('加载失败'); show('screen-upload'); return; }
+  const d = await res.json();
+  S.words = d.words;
+  S.subtitles = d.subtitles;
+  S.stats = d.stats;
+  S.isVideo = d.is_video;
+  S.duration = d.stats.total_duration;
+  S.dirty = false;
+
+  document.getElementById('edit-filename').textContent = d.filename;
+  document.getElementById('tl-e').textContent = fmtTime(S.duration);
+
+  const stem = S.filename.replace(/\.[^.]+$/, '');
+  const vn = document.getElementById('export-video-name');
+  const sn = document.getElementById('export-srt-name');
+  if (vn) vn.textContent = stem + '_cleancut.mp4';
+  if (sn) sn.textContent = stem + '_cleancut.srt';
+
+  setVideoMode('preview');
+  updateStats();
+  renderTranscript();
+  updateDirtyUI();
+  show('screen-edit');
+
+  setTimeout(() => {
+    drawTimeline();
+    const v = document.getElementById('video-player');
+    v.addEventListener('timeupdate', onTimeUpdate);
+    v.addEventListener('play', () => {
+      document.getElementById('icon-play').style.display = 'none';
+      document.getElementById('icon-pause').style.display = '';
+    });
+    v.addEventListener('pause', () => {
+      document.getElementById('icon-play').style.display = '';
+      document.getElementById('icon-pause').style.display = 'none';
+    });
+  }, 60);
+}
+
+/* ═══ Video tabs ═════════════════════════════════════════ */
+document.querySelectorAll('.video-tab').forEach(btn => {
+  btn.addEventListener('click', () => setVideoMode(btn.dataset.mode));
+});
+
+function setVideoMode(mode) {
+  S.videoMode = mode;
+  document.querySelectorAll('.video-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  const v = document.getElementById('video-player');
+  const wasPlaying = !v.paused;
+  if (mode === 'preview') {
+    v.src = `/api/preview/${S.taskId}?t=${Date.now()}`;
+  } else {
+    v.src = `/api/video/${S.taskId}`;
+  }
+  v.load();
+  if (wasPlaying) v.play();
+}
+
+/* ═══ Transcript ═════════════════════════════════════════ */
+function renderTranscript() {
+  const c = document.getElementById('transcript-content');
+  c.innerHTML = '';
+  if (!S.words.length) { c.textContent = '（无识别内容）'; return; }
+
+  S.words.forEach((w, i) => {
+    if (i > 0 && w.start - S.words[i - 1].end > 2.0) {
+      c.appendChild(document.createElement('br'));
+      c.appendChild(document.createElement('br'));
+    }
+    const sp = document.createElement('span');
+    sp.className = `w ${w.status}`;
+    sp.dataset.i = i;
+    sp.textContent = w.word;
+    sp.addEventListener('click', () => toggleWord(i));
+    c.appendChild(sp);
+  });
+}
+
+function toggleWord(i) {
+  const w = S.words[i];
+  w.status = w.status === 'remove' ? 'keep' : 'remove';
+  const sp = document.querySelector(`.w[data-i="${i}"]`);
+  if (sp) sp.className = `w ${w.status}`;
+  S.dirty = true;
+  updateStats();
+  updateDirtyUI();
+  drawTimeline();
+}
+
+function updateDirtyUI() {
+  const hint = document.getElementById('regen-hint');
+  const btn = document.getElementById('btn-regen');
+  if (S.dirty) {
+    hint.classList.add('visible');
+    btn.style.display = '';
+  } else {
+    hint.classList.remove('visible');
+    btn.style.display = 'none';
+  }
+}
+
+/* ═══ Stats ══════════════════════════════════════════════ */
+function liveStats() {
+  const rm = S.words.filter(w => w.status === 'remove');
+  const dur = rm.reduce((s, w) => s + (w.end - w.start), 0);
+  return { count: rm.length, dur };
+}
+
+function updateStats() {
+  const { count, dur } = liveStats();
+  const pct = S.duration > 0 ? (100 - (dur / S.duration) * 100).toFixed(0) : 100;
+  const finalLen = Math.max(0, S.duration - dur);
+
+  document.getElementById('topbar-stats').innerHTML =
+    `删除 <span class="hl">${count}</span> 处 · 节省 <span class="hl">${dur.toFixed(1)}s</span>`;
+
+  document.getElementById('sv-count').textContent = count;
+  document.getElementById('sv-saved').textContent = '\u2212' + dur.toFixed(0) + 's';
+  document.getElementById('sv-pct').textContent = pct + '%';
+  document.getElementById('sv-length').textContent = fmtDuration(finalLen);
+}
+
+/* ═══ Timeline ═══════════════════════════════════════════ */
+function drawTimeline() {
+  const canvas = document.getElementById('timeline-canvas');
+  const bar = document.getElementById('timeline-bar');
+  const W = bar.clientWidth, H = bar.clientHeight;
+  canvas.width = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const dur = S.duration || 1;
+  ctx.fillStyle = '#EDE3C8';
+  ctx.fillRect(0, 0, W, H);
+
+  S.words.forEach(w => {
+    const x = (w.start / dur) * W;
+    const width = Math.max(1, ((w.end - w.start) / dur) * W);
+    ctx.fillStyle = w.status === 'remove' ? 'rgba(155,43,26,0.3)' : 'rgba(200,134,10,0.45)';
+    ctx.fillRect(x, 0, width, H);
+  });
+}
+
+document.getElementById('timeline-bar').addEventListener('click', e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  const ratio = (e.clientX - r.left) / r.width;
+  const v = document.getElementById('video-player');
+  if (v.duration) v.currentTime = ratio * v.duration;
+});
+
+/* Timeline hover tooltip */
+(function() {
+  const bar = document.getElementById('timeline-bar');
+  const tip = document.getElementById('tl-tooltip');
+  bar.addEventListener('mousemove', e => {
+    const r = bar.getBoundingClientRect();
+    const ratio = (e.clientX - r.left) / r.width;
+    const t = ratio * (S.duration || 0);
+    tip.textContent = fmtTime(Math.max(0, t));
+    tip.style.left = (e.clientX - r.left) + 'px';
+    tip.style.display = 'block';
+  });
+  bar.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+})();
+
+/* ═══ Player ═════════════════════════════════════════════ */
+let curIdx = -1;
+
+function onTimeUpdate() {
+  const v = document.getElementById('video-player');
+  const t = v.currentTime;
+  const dur = v.duration || S.duration || 1;
+  document.getElementById('playhead').style.left = ((t / dur) * 100) + '%';
+  document.getElementById('time-label').textContent = fmtTime(t) + ' / ' + fmtTime(dur);
+
+  if (S.videoMode === 'original') {
+    const idx = S.words.findIndex(w => t >= w.start && t <= w.end);
+    if (idx !== curIdx) {
+      if (curIdx >= 0) { const p = document.querySelector(`.w[data-i="${curIdx}"]`); if (p) p.classList.remove('current'); }
+      if (idx >= 0) {
+        const c = document.querySelector(`.w[data-i="${idx}"]`);
+        if (c) { c.classList.add('current'); c.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      }
+      curIdx = idx;
+    }
+  }
+}
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  const v = document.getElementById('video-player');
+  v.paused ? v.play() : v.pause();
+});
+document.getElementById('speed-btn').addEventListener('click', () => {
+  S.speedIdx = (S.speedIdx + 1) % S.speeds.length;
+  const spd = S.speeds[S.speedIdx];
+  document.getElementById('video-player').playbackRate = spd;
+  document.getElementById('speed-btn').textContent = spd + '×';
+});
+
+/* ═══ Regenerate ═════════════════════════════════════════ */
+document.getElementById('btn-regen').addEventListener('click', async () => {
+  const overlay = document.getElementById('overlay');
+  document.getElementById('overlay-text').textContent = '正在重新合成…';
+  overlay.classList.add('active');
+
+  try {
+    const res = await fetch(`/api/regenerate/${S.taskId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ words: S.words }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const d = await res.json();
+    S.stats = d.stats;
+    S.dirty = false;
+    updateStats();
+    updateDirtyUI();
+    setVideoMode('preview');
+    toast('预览已更新');
+  } catch (err) {
+    toast('生成失败：' + err.message);
+  } finally {
+    overlay.classList.remove('active');
+  }
+});
+
+/* ═══ Export ═════════════════════════════════════════════ */
+async function doExport(type) {
+  const overlay = document.getElementById('overlay');
+  document.getElementById('overlay-text').textContent =
+    type === 'srt' ? '正在生成字幕…' : '正在准备导出…';
+  overlay.classList.add('active');
+
+  try {
+    if (S.dirty && type !== 'srt') {
+      const regen = await fetch(`/api/regenerate/${S.taskId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: S.words }),
+      });
+      if (!regen.ok) throw new Error(await regen.text());
+      S.dirty = false;
+      updateDirtyUI();
+    }
+
+    const res = await fetch(`/api/export/${S.taskId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ export_type: type, subtitles: S.subtitles }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stem = S.filename.replace(/\.[^.]+$/, '');
+    a.href = url;
+    a.download = type === 'srt' ? `${stem}_cleancut.srt` : `${stem}_cleancut.mp4`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(type === 'srt' ? '字幕已下载' : '视频已下载');
+  } catch (err) {
+    toast('导出失败：' + err.message);
+  } finally {
+    overlay.classList.remove('active');
+  }
+}
+
+document.getElementById('btn-export-video').addEventListener('click', () => doExport('video'));
+document.getElementById('btn-export-srt').addEventListener('click', () => doExport('srt'));
+
+/* Export cards + close + start new */
+document.getElementById('card-export-video').addEventListener('click', () => doExport('video'));
+document.getElementById('card-export-srt').addEventListener('click', () => doExport('srt'));
+document.getElementById('btn-start-new').addEventListener('click', () => show('screen-upload'));
+document.getElementById('btn-close-modal').addEventListener('click', () => show('screen-upload'));
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-edit').classList.contains('active')) drawTimeline();
+});
+</script>
+</body>
+</html>
