@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CleanCut — AI Filler Word Removal</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        parchment:   { 50:'#FAF4E8', 100:'#F5EDD8', 200:'#EDE3C8', 300:'#E4D8B8', 400:'#D4C8A0' },
+        ink:         { DEFAULT:'#2C1A0E', mid:'#5C3D28', dim:'#8C6E56', pale:'#B89E88' },
+        amber:       { DEFAULT:'#C8860A', dark:'#A06808', light:'#E8A830', bg:'rgba(200,134,10,0.08)' },
+        brick:       { DEFAULT:'#9B2B1A' },
+        forest:      { DEFAULT:'#4A7A3A' },
+      },
+      fontFamily: {
+        display: ['Playfair Display', 'serif'],
+        mono:    ['DM Mono', 'monospace'],
+        serif:   ['Cormorant Garamond', 'serif'],
+      },
+    }
+  }
+}
+</script>
+<!-- AOS (Animate On Scroll) -->
+<link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
+<script src="https://unpkg.com/aos@2.3.4/dist/aos.js" defer></script>
+<style>
+  body { background: #F5EDD8; }
+  /* Paper rule lines */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(44,26,14,0.018) 28px, rgba(44,26,14,0.018) 29px);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* Hero title line reveal */
+  .hero-line { display: block; overflow: hidden; }
+  .hero-line-inner {
+    display: block;
+    transform: translateY(110%);
+    animation: lineUp 0.85s cubic-bezier(0.16,1,0.3,1) forwards;
+  }
+  .hero-line-inner.d1 { animation-delay: 0.3s; }
+  .hero-line-inner.d2 { animation-delay: 0.5s; }
+  .hero-line-inner.d3 { animation-delay: 0.7s; }
+  @keyframes lineUp { to { transform: translateY(0); } }
+
+  /* Expanding rule */
+  .hero-rule {
+    transform-origin: left;
+    animation: expandRule 0.8s ease 1s forwards;
+    opacity: 0;
+  }
+  @keyframes expandRule { from { opacity:0; transform:scaleX(0); } to { opacity:1; transform:scaleX(1); } }
+
+  /* Fade in up utility */
+  .fade-up { opacity:0; animation: fadeUp 0.6s ease forwards; }
+  .fade-up.d1 { animation-delay: 1.1s; }
+  .fade-up.d2 { animation-delay: 1.3s; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+
+  /* Waveform bar animation */
+  .bar { animation: wavePulse 2.2s ease-in-out infinite; transform-origin: center; }
+  @keyframes wavePulse { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(0.7)} }
+
+  /* Blink cursor */
+  .tcursor { animation: blink 1s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Pipeline connecting line animation */
+  .pipeline-line-anim {
+    width: 0;
+    transition: width 2s cubic-bezier(0.16,1,0.3,1);
+  }
+  .pipeline-line-anim.active { width: calc(100% - 16.66%); }
+
+  /* Corner bracket mixin */
+  .corner-brackets { position: relative; }
+  .corner-brackets::before, .corner-brackets::after {
+    content: ''; position: absolute;
+    width: 8px; height: 8px; transition: all 0.25s; opacity: 0;
+  }
+  .corner-brackets::before { top:-3px;left:-3px; border-top:2px solid #E8A830; border-left:2px solid #E8A830; }
+  .corner-brackets::after  { bottom:-3px;right:-3px; border-bottom:2px solid #E8A830; border-right:2px solid #E8A830; }
+  .corner-brackets:hover::before, .corner-brackets:hover::after { opacity:1; width:12px; height:12px; }
+
+  /* Feature card left accent */
+  .feat-accent::before {
+    content:''; position:absolute; top:0; left:0;
+    width:3px; height:0; background:#C8860A; transition: height 0.4s;
+  }
+  .feat-accent:hover::before { height:100%; }
+
+  /* Feature card corner */
+  .feat-corner::after {
+    content:''; position:absolute; top:16px; right:16px;
+    width:14px; height:14px;
+    border-top:1px solid rgba(44,26,14,0.1); border-right:1px solid rgba(44,26,14,0.1);
+    transition: all 0.3s;
+  }
+  .feat-corner:hover::after { border-color:#E8A830; width:20px; height:20px; }
+
+  /* Stat count-up */
+  .count-up { font-variant-numeric: tabular-nums; }
+
+  /* Smooth scroll */
+  html { scroll-behavior: smooth; }
+</style>
+</head>
+<body class="text-ink font-mono font-light relative z-[1]">
+
+<!-- ═══ NAV ═══════════════════════════════════════════════ -->
+<nav class="fixed top-0 inset-x-0 z-50 bg-parchment-100/92 backdrop-blur-xl border-b border-ink/10">
+  <div class="max-w-7xl mx-auto px-6 md:px-14 h-14 flex items-center justify-between">
+    <a href="/" class="font-display font-black text-xl tracking-tight">Clean<em class="italic text-amber">Cut</em></a>
+    <ul class="hidden md:flex gap-9 text-[11px] tracking-[0.1em] uppercase text-ink-dim">
+      <li><a href="#pipeline" class="hover:text-amber transition-colors relative group">Pipeline<span class="absolute bottom-0 left-0 w-0 h-px bg-amber group-hover:w-full transition-all duration-300"></span></a></li>
+      <li><a href="#features" class="hover:text-amber transition-colors relative group">Features<span class="absolute bottom-0 left-0 w-0 h-px bg-amber group-hover:w-full transition-all duration-300"></span></a></li>
+      <li><a href="#usage" class="hover:text-amber transition-colors relative group">Usage<span class="absolute bottom-0 left-0 w-0 h-px bg-amber group-hover:w-full transition-all duration-300"></span></a></li>
+    </ul>
+    <a href="/app" class="corner-brackets bg-ink text-parchment-100 px-5 py-2 text-[11px] tracking-[0.08em] uppercase font-medium hover:bg-amber-dark transition-colors">开始使用</a>
+  </div>
+</nav>
+
+<!-- ═══ HERO ══════════════════════════════════════════════ -->
+<section class="min-h-screen pt-28 pb-20 px-6 md:px-14 max-w-7xl mx-auto grid md:grid-cols-[55%_45%] gap-16 items-center">
+  <!-- Left -->
+  <div>
+    <div class="flex items-center gap-3 mb-8 opacity-0 animate-[fadeUp_0.6s_ease_0.2s_forwards]">
+      <span class="w-6 h-px bg-amber"></span>
+      <span class="text-[11px] tracking-[0.14em] uppercase text-amber font-medium">AI-Powered Audio Editing</span>
+      <span class="ml-auto font-serif text-xs tracking-wider text-ink-pale italic">Vol. 01 — 2025</span>
+    </div>
+
+    <h1 class="font-display leading-[0.93] tracking-tight mb-2" style="font-size:clamp(52px,6.5vw,88px)">
+      <span class="hero-line"><span class="hero-line-inner d1 font-black">Every word</span></span>
+      <span class="hero-line"><span class="hero-line-inner d2 font-black italic text-amber">counts.</span></span>
+      <span class="hero-line"><span class="hero-line-inner d3 font-normal text-ink-mid" style="font-size:0.68em;letter-spacing:-0.01em;margin-top:4px">Cut the filler. Keep the meaning.</span></span>
+    </h1>
+
+    <div class="hero-rule w-full h-px bg-gradient-to-r from-amber to-ink/10 my-7"></div>
+
+    <p class="fade-up d1 font-serif text-lg text-ink-mid leading-relaxed max-w-[440px] mb-10">
+      CleanCut uses <strong class="font-semibold text-ink">Whisper word-level timestamps</strong> and
+      <strong class="font-semibold text-ink">LLM semantic analysis</strong> to surgically remove filler words —
+      producing pristine transcripts and media files in a single command.
+    </p>
+
+    <div class="fade-up d2 flex gap-4 flex-wrap">
+      <a href="/app" class="corner-brackets bg-ink text-parchment-100 px-8 py-3.5 text-xs tracking-[0.08em] uppercase font-medium hover:bg-amber-dark hover:-translate-y-0.5 hover:shadow-lg transition-all">→ 开始使用</a>
+      <a href="https://github.com" target="_blank" class="border border-ink/10 text-ink-mid px-8 py-3.5 text-xs tracking-[0.08em] uppercase hover:border-amber hover:text-amber transition-all">View on GitHub</a>
+    </div>
+  </div>
+
+  <!-- Right: Editor Card -->
+  <div data-aos="fade-up" data-aos-delay="200" data-aos-duration="800">
+    <div class="bg-parchment-50 border border-ink/10 shadow-[8px_8px_0px_#E4D8B8,16px_16px_0px_rgba(44,26,14,0.04)]">
+      <!-- Topbar -->
+      <div class="bg-parchment-200 border-b border-ink/10 px-5 py-3 flex items-center gap-3">
+        <div class="flex gap-1.5">
+          <div class="w-2.5 h-2.5 rounded-full bg-[#C87D6A]"></div>
+          <div class="w-2.5 h-2.5 rounded-full bg-amber-light"></div>
+          <div class="w-2.5 h-2.5 rounded-full bg-[#7AAF6A]"></div>
+        </div>
+        <span class="text-[11px] text-ink-pale tracking-wider ml-2">podcast_ep12.mp4 → cleaned.mp4</span>
+        <span class="ml-auto text-[10px] px-2.5 py-0.5 bg-forest/10 text-forest border border-forest/20 tracking-wider">✓ Complete</span>
+      </div>
+
+      <!-- Waveform -->
+      <div class="px-5 pt-5 pb-4 border-b border-ink/[0.06]">
+        <div class="text-[10px] tracking-[0.1em] uppercase text-ink-pale mb-3">Audio Waveform — Filler Regions Marked</div>
+        <div id="waveform" class="flex items-center gap-0.5 h-16"></div>
+        <div class="flex justify-between mt-2 text-[10px] text-ink-pale tracking-wider">
+          <span>0:00</span><span>0:15</span><span>0:30</span><span>0:45</span><span>1:00</span>
+        </div>
+      </div>
+
+      <!-- Transcript -->
+      <div class="px-5 py-4 border-b border-ink/[0.06]">
+        <div class="text-[10px] tracking-[0.1em] uppercase text-ink-pale mb-3">Cleaned Transcript</div>
+        <div class="font-serif text-[15px] leading-[1.9]">
+          <span>So</span>&nbsp;<span class="text-brick line-through opacity-50">um</span>&nbsp;<span>today</span>&nbsp;<span>we're</span>&nbsp;<span class="text-brick line-through opacity-50">uh</span>&nbsp;<span>going</span>&nbsp;<span>to</span>&nbsp;<span class="text-brick line-through opacity-50">like</span>&nbsp;<span class="text-forest font-semibold">discuss</span>&nbsp;<span class="text-forest font-semibold">how</span>&nbsp;<span class="text-brick line-through opacity-50">you know</span>&nbsp;<span class="text-forest font-semibold">AI</span>&nbsp;<span class="text-forest font-semibold">transforms</span>&nbsp;<span class="text-forest font-semibold">audio</span>&nbsp;<span class="text-forest font-semibold">editing.</span><span class="tcursor inline-block w-0.5 h-4 bg-amber ml-0.5 align-middle"></span>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-3 border-t border-ink/10">
+        <div class="py-4 px-5 text-center border-r border-ink/[0.06]">
+          <div class="font-display text-2xl font-bold text-amber leading-none tracking-tight count-up" data-target="34">0</div>
+          <div class="text-[10px] text-ink-pale tracking-[0.08em] uppercase mt-1">Fillers Removed</div>
+        </div>
+        <div class="py-4 px-5 text-center border-r border-ink/[0.06]">
+          <div class="font-display text-2xl font-bold text-amber leading-none tracking-tight">−18s</div>
+          <div class="text-[10px] text-ink-pale tracking-[0.08em] uppercase mt-1">Time Saved</div>
+        </div>
+        <div class="py-4 px-5 text-center">
+          <div class="font-display text-2xl font-bold text-amber leading-none tracking-tight count-up" data-target="97" data-suffix="%">0</div>
+          <div class="text-[10px] text-ink-pale tracking-[0.08em] uppercase mt-1">Accuracy</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PIPELINE ═════════════════════════════════════════ -->
+<section id="pipeline" class="bg-ink text-parchment-100 py-28 px-6 md:px-14 relative overflow-hidden">
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-display text-[180px] font-black text-parchment-100/[0.025] tracking-tighter whitespace-nowrap pointer-events-none select-none">PIPELINE</div>
+  <div class="absolute top-10 right-14 w-14 h-14 border-t border-r border-amber/30 hidden md:block"></div>
+
+  <div class="max-w-7xl mx-auto">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between mb-20">
+      <div data-aos="fade-right" data-aos-duration="700">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-px bg-amber-light"></span>
+          <span class="text-[11px] tracking-[0.14em] uppercase text-amber-light font-medium">Automated Workflow</span>
+        </div>
+        <h2 class="font-display font-black leading-[0.95] tracking-tight" style="font-size:clamp(38px,4vw,60px)">From raw<br><em class="italic text-amber-light">to pristine.</em></h2>
+      </div>
+      <p data-aos="fade-left" data-aos-delay="100" class="font-serif text-base text-parchment-100/40 max-w-[260px] text-right leading-relaxed mt-6 md:mt-0">Six stages. One command. Zero manual editing required.</p>
+    </div>
+
+    <div id="pipeline-track" class="grid grid-cols-3 md:grid-cols-6 gap-y-10 relative">
+      <!-- Connecting line (desktop) -->
+      <div class="hidden md:block absolute top-[35px] left-[8.33%] right-[8.33%] h-px bg-amber/25"></div>
+      <div class="hidden md:block absolute top-[35px] left-[8.33%] h-px bg-gradient-to-r from-amber to-amber-light pipeline-line-anim" id="pipeline-line"></div>
+
+      <div class="flex flex-col items-center text-center px-2" data-aos="fade-up" data-aos-delay="0">
+        <div class="w-[70px] h-[70px] border border-parchment-100/10 bg-parchment-100/[0.04] flex items-center justify-center mb-5 relative hover:border-amber hover:bg-amber/[0.08] hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(200,134,10,0.12)] transition-all group">
+          <span class="absolute -top-[7px] -right-[7px] w-[18px] h-[18px] bg-amber text-ink text-[9px] font-medium flex items-center justify-center font-mono">1</span>
+          <svg class="w-7 h-7 stroke-parchment-100/60 group-hover:stroke-amber-light transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><rect x="3" y="5" width="22" height="18" rx="1"/><line x1="3" y1="10" x2="25" y2="10"/><line x1="3" y1="18" x2="25" y2="18"/><line x1="8" y1="5" x2="8" y2="10"/><line x1="14" y1="5" x2="14" y2="10"/><line x1="20" y1="5" x2="20" y2="10"/></svg>
+        </div>
+        <div class="font-display text-[11px] font-bold tracking-[0.06em] uppercase mb-1">Input</div>
+        <div class="text-[10px] text-amber-light/80 tracking-wider">mp4 / mov / wav</div>
+      </div>
+
+      <div class="flex flex-col items-center text-center px-2" data-aos="fade-up" data-aos-delay="80">
+        <div class="w-[70px] h-[70px] border border-parchment-100/10 bg-parchment-100/[0.04] flex items-center justify-center mb-5 relative hover:border-amber hover:bg-amber/[0.08] hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(200,134,10,0.12)] transition-all group">
+          <span class="absolute -top-[7px] -right-[7px] w-[18px] h-[18px] bg-amber text-ink text-[9px] font-medium flex items-center justify-center font-mono">2</span>
+          <svg class="w-7 h-7 stroke-parchment-100/60 group-hover:stroke-amber-light transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><polyline points="2,14 5,14 7,8 9,20 11,6 13,22 15,10 17,18 19,14 26,14"/></svg>
+        </div>
+        <div class="font-display text-[11px] font-bold tracking-[0.06em] uppercase mb-1">Extract</div>
+        <div class="text-[10px] text-amber-light/80 tracking-wider">FFmpeg</div>
+      </div>
+
+      <div class="flex flex-col items-center text-center px-2" data-aos="fade-up" data-aos-delay="160">
+        <div class="w-[70px] h-[70px] border border-parchment-100/10 bg-parchment-100/[0.04] flex items-center justify-center mb-5 relative hover:border-amber hover:bg-amber/[0.08] hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(200,134,10,0.12)] transition-all group">
+          <span class="absolute -top-[7px] -right-[7px] w-[18px] h-[18px] bg-amber text-ink text-[9px] font-medium flex items-center justify-center font-mono">3</span>
+          <svg class="w-7 h-7 stroke-parchment-100/60 group-hover:stroke-amber-light transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><polygon points="4,6 24,6 16,15 16,23 12,21 12,15"/></svg>
+        </div>
+        <div class="font-display text-[11px] font-bold tracking-[0.06em] uppercase mb-1">Denoise</div>
+        <div class="text-[10px] text-amber-light/80 tracking-wider">noisereduce</div>
+      </div>
+
+      <div class="flex flex-col items-center text-center px-2" data-aos="fade-up" data-aos-delay="240">
+        <div class="w-[70px] h-[70px] border border-parchment-100/10 bg-parchment-100/[0.04] flex items-center justify-center mb-5 relative hover:border-amber hover:bg-amber/[0.08] hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(200,134,10,0.12)] transition-all group">
+          <span class="absolute -top-[7px] -right-[7px] w-[18px] h-[18px] bg-amber text-ink text-[9px] font-medium flex items-center justify-center font-mono">4</span>
+          <svg class="w-7 h-7 stroke-parchment-100/60 group-hover:stroke-amber-light transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><line x1="5" y1="8" x2="23" y2="8"/><line x1="5" y1="13" x2="23" y2="13"/><line x1="5" y1="18" x2="18" y2="18"/><rect x="18" y="15" width="7" height="7" rx="1"/></svg>
+        </div>
+        <div class="font-display text-[11px] font-bold tracking-[0.06em] uppercase mb-1">Transcribe</div>
+        <div class="text-[10px] text-amber-light/80 tracking-wider">Whisper</div>
+      </div>
+
+      <div class="flex flex-col items-center text-center px-2" data-aos="fade-up" data-aos-delay="320">
+        <div class="w-[70px] h-[70px] border border-parchment-100/10 bg-parchment-100/[0.04] flex items-center justify-center mb-5 relative hover:border-amber hover:bg-amber/[0.08] hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(200,134,10,0.12)] transition-all group">
+          <span class="absolute -top-[7px] -right-[7px] w-[18px] h-[18px] bg-amber text-ink text-[9px] font-medium flex items-center justify-center font-mono">5</span>
+          <svg class="w-7 h-7 stroke-parchment-100/60 group-hover:stroke-amber-light transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><circle cx="14" cy="14" r="3"/><circle cx="6" cy="7" r="2"/><circle cx="22" cy="7" r="2"/><circle cx="6" cy="21" r="2"/><circle cx="22" cy="21" r="2"/><line x1="14" y1="11" x2="7.4" y2="8.4"/><line x1="14" y1="11" x2="20.6" y2="8.4"/><line x1="14" y1="17" x2="7.4" y2="19.6"/><line x1="14" y1="17" x2="20.6" y2="19.6"/></svg>
+        </div>
+        <div class="font-display text-[11px] font-bold tracking-[0.06em] uppercase mb-1">Semantic AI</div>
+        <div class="text-[10px] text-amber-light/80 tracking-wider">DeepSeek / OpenAI</div>
+      </div>
+
+      <div class="flex flex-col items-center text-center px-2" data-aos="fade-up" data-aos-delay="400">
+        <div class="w-[70px] h-[70px] border border-parchment-100/10 bg-parchment-100/[0.04] flex items-center justify-center mb-5 relative hover:border-amber hover:bg-amber/[0.08] hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(200,134,10,0.12)] transition-all group">
+          <span class="absolute -top-[7px] -right-[7px] w-[18px] h-[18px] bg-amber text-ink text-[9px] font-medium flex items-center justify-center font-mono">6</span>
+          <svg class="w-7 h-7 stroke-parchment-100/60 group-hover:stroke-amber-light transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><circle cx="8" cy="9" r="3"/><circle cx="8" cy="19" r="3"/><line x1="10.5" y1="10.5" x2="22" y2="22"/><line x1="10.5" y1="17.5" x2="16" y2="12"/><line x1="18" y1="10" x2="22" y2="6"/></svg>
+        </div>
+        <div class="font-display text-[11px] font-bold tracking-[0.06em] uppercase mb-1">Precise Edit</div>
+        <div class="text-[10px] text-amber-light/80 tracking-wider">FFmpeg concat</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═════════════════════════════════════════ -->
+<section id="features" class="bg-parchment-50 py-28 px-6 md:px-14 relative z-[1]">
+  <div class="max-w-7xl mx-auto">
+    <div class="grid md:grid-cols-2 gap-16 items-end mb-14">
+      <div data-aos="fade-right" data-aos-duration="700">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-6 h-px bg-amber"></span>
+          <span class="text-[11px] tracking-[0.14em] uppercase text-amber font-medium">Core Capabilities</span>
+        </div>
+        <h2 class="font-display font-black leading-[0.95] tracking-tight" style="font-size:clamp(36px,3.5vw,56px)">Built for<br><em class="italic text-amber">precision.</em></h2>
+      </div>
+      <p data-aos="fade-left" data-aos-delay="100" class="font-serif text-lg text-ink-mid leading-relaxed">
+        Every design decision prioritizes accuracy — from millisecond-level
+        timestamps to semantic understanding that distinguishes meaning from noise.
+      </p>
+    </div>
+
+    <div class="w-full h-px bg-gradient-to-r from-amber to-transparent mb-14"></div>
+
+    <div class="grid md:grid-cols-2 border border-ink/10">
+      <!-- Feature 1 -->
+      <div class="feat-accent feat-corner p-11 border-r border-b border-ink/10 relative overflow-hidden hover:bg-parchment-100 transition-colors" data-aos="fade-up" data-aos-delay="0">
+        <div class="font-display text-[52px] font-black text-ink/5 leading-none tracking-tight mb-5 hover:text-amber/10 transition-colors">01</div>
+        <div class="w-[72px] h-[72px] border border-ink/10 flex items-center justify-center bg-parchment-50 mb-5 hover:border-amber transition-colors group">
+          <svg class="w-7 h-7 stroke-ink-mid group-hover:stroke-amber transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><line x1="14" y1="4" x2="14" y2="24"/><line x1="4" y1="14" x2="24" y2="14"/><circle cx="14" cy="14" r="4"/><circle cx="14" cy="14" r="9"/></svg>
+        </div>
+        <h3 class="font-display text-lg font-bold tracking-tight mb-3">Word-level Precision</h3>
+        <p class="font-serif text-base text-ink-mid leading-relaxed">Uses Whisper's word-level timestamps to remove filler words with millisecond accuracy. No awkward silences, no clipped words.</p>
+        <span class="inline-block mt-4 text-[10px] tracking-[0.08em] uppercase text-amber-dark bg-amber/[0.08] border border-amber/[0.18] px-2.5 py-1">Whisper</span>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="feat-accent feat-corner p-11 border-b border-ink/10 relative overflow-hidden hover:bg-parchment-100 transition-colors" data-aos="fade-up" data-aos-delay="100">
+        <div class="font-display text-[52px] font-black text-ink/5 leading-none tracking-tight mb-5">02</div>
+        <div class="w-[72px] h-[72px] border border-ink/10 flex items-center justify-center bg-parchment-50 mb-5 hover:border-amber transition-colors group">
+          <svg class="w-7 h-7 stroke-ink-mid group-hover:stroke-amber transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><circle cx="14" cy="14" r="3"/><circle cx="6" cy="7" r="2"/><circle cx="22" cy="7" r="2"/><circle cx="6" cy="21" r="2"/><circle cx="22" cy="21" r="2"/><line x1="14" y1="11" x2="7.4" y2="8.4"/><line x1="14" y1="11" x2="20.6" y2="8.4"/><line x1="14" y1="17" x2="7.4" y2="19.6"/><line x1="14" y1="17" x2="20.6" y2="19.6"/></svg>
+        </div>
+        <h3 class="font-display text-lg font-bold tracking-tight mb-3">LLM Semantic Understanding</h3>
+        <p class="font-serif text-base text-ink-mid leading-relaxed">Leverages DeepSeek or any OpenAI-compatible model to accurately distinguish meaningful speech from filler sounds in context.</p>
+        <span class="inline-block mt-4 text-[10px] tracking-[0.08em] uppercase text-amber-dark bg-amber/[0.08] border border-amber/[0.18] px-2.5 py-1">DeepSeek · GPT-4</span>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="feat-accent feat-corner p-11 border-r border-ink/10 relative overflow-hidden hover:bg-parchment-100 transition-colors" data-aos="fade-up" data-aos-delay="150">
+        <div class="font-display text-[52px] font-black text-ink/5 leading-none tracking-tight mb-5">03</div>
+        <div class="w-[72px] h-[72px] border border-ink/10 flex items-center justify-center bg-parchment-50 mb-5 hover:border-amber transition-colors group">
+          <svg class="w-7 h-7 stroke-ink-mid group-hover:stroke-amber transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><polyline points="4,14 10,8 14,12 18,6 24,14"/><polyline points="18,18 14,22 10,18"/><line x1="14" y1="14" x2="14" y2="22"/></svg>
+        </div>
+        <h3 class="font-display text-lg font-bold tracking-tight mb-3">Resumable Pipeline</h3>
+        <p class="font-serif text-base text-ink-mid leading-relaxed">Intermediate results are cached at every stage. Interrupted runs resume from the last checkpoint — no work is ever lost.</p>
+        <span class="inline-block mt-4 text-[10px] tracking-[0.08em] uppercase text-amber-dark bg-amber/[0.08] border border-amber/[0.18] px-2.5 py-1">Auto Cache</span>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="feat-accent feat-corner p-11 relative overflow-hidden hover:bg-parchment-100 transition-colors" data-aos="fade-up" data-aos-delay="200">
+        <div class="font-display text-[52px] font-black text-ink/5 leading-none tracking-tight mb-5">04</div>
+        <div class="w-[72px] h-[72px] border border-ink/10 flex items-center justify-center bg-parchment-50 mb-5 hover:border-amber transition-colors group">
+          <svg class="w-7 h-7 stroke-ink-mid group-hover:stroke-amber transition-colors" viewBox="0 0 28 28" fill="none" stroke-width="1.5"><rect x="5" y="4" width="18" height="20" rx="1"/><line x1="5" y1="10" x2="23" y2="10"/><line x1="10" y1="4" x2="10" y2="10"/><line x1="9" y1="15" x2="19" y2="15"/><line x1="9" y1="19" x2="16" y2="19"/></svg>
+        </div>
+        <h3 class="font-display text-lg font-bold tracking-tight mb-3">Dual Output</h3>
+        <p class="font-serif text-base text-ink-mid leading-relaxed">Produces both a cleaned SRT subtitle file and a cleaned audio or video file. Everything you need, delivered together.</p>
+        <span class="inline-block mt-4 text-[10px] tracking-[0.08em] uppercase text-amber-dark bg-amber/[0.08] border border-amber/[0.18] px-2.5 py-1">.srt · .mp4 · .m4a</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CODE USAGE ═══════════════════════════════════════ -->
+<section id="usage" class="bg-parchment-200 py-28 px-6 md:px-14 relative z-[1]">
+  <div class="absolute bottom-10 left-14 w-14 h-14 border-b border-l border-ink/10 hidden md:block"></div>
+  <div class="max-w-7xl mx-auto grid md:grid-cols-2 gap-20 items-center">
+    <div data-aos="fade-right" data-aos-duration="700">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="w-6 h-px bg-amber"></span>
+        <span class="text-[11px] tracking-[0.14em] uppercase text-amber font-medium">Single Command</span>
+      </div>
+      <h2 class="font-display font-black leading-[0.95] tracking-tight mb-6" style="font-size:clamp(36px,3.5vw,56px)">One line.<br><em class="italic text-amber">Clean audio.</em></h2>
+      <p class="font-serif text-lg text-ink-mid leading-relaxed mb-10">
+        Point CleanCut at any video or audio file and walk away.
+        The pipeline handles everything — denoising, transcription,
+        semantic analysis, and precision editing.
+      </p>
+
+      <div class="space-y-0">
+        <div class="flex items-center gap-3.5 font-serif text-base text-ink-mid py-2.5 border-b border-ink/[0.06]">
+          <span class="w-5 h-5 border border-forest flex items-center justify-center flex-shrink-0"><svg viewBox="0 0 10 10" fill="none" stroke="#4A7A3A" stroke-width="1.5" class="w-2.5 h-2.5"><polyline points="1.5,5 4,7.5 8.5,2"/></svg></span>
+          Supports mp4, mov, m4a, wav and more
+        </div>
+        <div class="flex items-center gap-3.5 font-serif text-base text-ink-mid py-2.5 border-b border-ink/[0.06]">
+          <span class="w-5 h-5 border border-forest flex items-center justify-center flex-shrink-0"><svg viewBox="0 0 10 10" fill="none" stroke="#4A7A3A" stroke-width="1.5" class="w-2.5 h-2.5"><polyline points="1.5,5 4,7.5 8.5,2"/></svg></span>
+          Compatible with any OpenAI-compatible API
+        </div>
+        <div class="flex items-center gap-3.5 font-serif text-base text-ink-mid py-2.5 border-b border-ink/[0.06]">
+          <span class="w-5 h-5 border border-forest flex items-center justify-center flex-shrink-0"><svg viewBox="0 0 10 10" fill="none" stroke="#4A7A3A" stroke-width="1.5" class="w-2.5 h-2.5"><polyline points="1.5,5 4,7.5 8.5,2"/></svg></span>
+          Local Whisper or API-based transcription
+        </div>
+        <div class="flex items-center gap-3.5 font-serif text-base text-ink-mid py-2.5">
+          <span class="w-5 h-5 border border-forest flex items-center justify-center flex-shrink-0"><svg viewBox="0 0 10 10" fill="none" stroke="#4A7A3A" stroke-width="1.5" class="w-2.5 h-2.5"><polyline points="1.5,5 4,7.5 8.5,2"/></svg></span>
+          Web UI for non-technical users
+        </div>
+      </div>
+    </div>
+
+    <!-- Code block -->
+    <div data-aos="fade-left" data-aos-delay="100" data-aos-duration="700">
+      <div class="bg-ink border border-parchment-100/[0.08] relative shadow-[6px_6px_0px_#E4D8B8]">
+        <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber to-transparent"></div>
+        <div class="flex items-center px-6 py-4 border-b border-parchment-100/[0.06]">
+          <div class="flex gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-[#C87D6A]"></div>
+            <div class="w-2 h-2 rounded-full bg-[#C8A020]"></div>
+            <div class="w-2 h-2 rounded-full bg-[#6A9A5A]"></div>
+          </div>
+          <span class="text-[11px] text-parchment-100/30 ml-3.5 tracking-wider">terminal</span>
+        </div>
+        <pre class="px-6 py-5 text-[12.5px] leading-[2] text-parchment-100/75 overflow-hidden"><span class="text-parchment-100/25"># Install dependencies</span>
+<span class="text-amber-light font-medium">pip install</span> <span class="text-[#9CBA8A]">-r requirements.txt</span>
+
+<span class="text-parchment-100/25"># Start the web UI</span>
+<span class="text-amber-light font-medium">python</span> <span class="text-[#9CBA8A]">server.py</span>
+
+<span class="text-parchment-100/25"># Or use the CLI directly</span>
+<span class="text-amber-light font-medium">python</span> <span class="text-[#9CBA8A]">pipeline.py</span> <span class="text-[#A0C4E0]">interview.mp4</span>
+
+<span class="text-parchment-100/25"># Output</span>
+<span class="text-parchment-100/30">→</span> <span class="text-forest">cleaned_interview.mp4</span>
+<span class="text-parchment-100/30">→</span> <span class="text-forest">cleaned_interview.srt</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA ══════════════════════════════════════════════ -->
+<section class="py-28 px-6 md:px-14 text-center relative z-[1]">
+  <div class="max-w-2xl mx-auto" data-aos="fade-up" data-aos-duration="700">
+    <div class="flex items-center justify-center gap-3 mb-4">
+      <span class="w-6 h-px bg-amber"></span>
+      <span class="text-[11px] tracking-[0.14em] uppercase text-amber font-medium">Ready?</span>
+      <span class="w-6 h-px bg-amber"></span>
+    </div>
+    <h2 class="font-display font-black leading-[0.95] tracking-tight mb-6" style="font-size:clamp(36px,4vw,56px)">Try it <em class="italic text-amber">now.</em></h2>
+    <p class="font-serif text-lg text-ink-mid leading-relaxed mb-10 max-w-md mx-auto">
+      Upload a video, let AI clean the filler words, preview the result, and export. No technical setup required.
+    </p>
+    <a href="/app" class="corner-brackets inline-flex items-center gap-2 bg-ink text-parchment-100 px-10 py-4 text-xs tracking-[0.08em] uppercase font-medium hover:bg-amber-dark hover:-translate-y-0.5 hover:shadow-xl transition-all">
+      → 打开 CleanCut
+    </a>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══════════════════════════════════════════ -->
+<footer class="bg-ink text-parchment-100/40 py-14 px-6 md:px-14 relative">
+  <div class="absolute top-0 left-0 w-28 h-0.5 bg-amber"></div>
+  <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+    <div class="font-display text-xl font-black text-parchment-100 tracking-tight">Clean<em class="italic text-amber-light">Cut</em></div>
+    <span class="font-serif text-[11px] italic tracking-wider">AI-powered filler word removal · Built for creators</span>
+    <ul class="flex gap-7">
+      <li><a href="https://github.com" class="text-[11px] tracking-[0.08em] uppercase hover:text-amber-light transition-colors relative group">GitHub<span class="absolute bottom-0 left-0 w-0 h-px bg-amber-light group-hover:w-full transition-all duration-300"></span></a></li>
+      <li><a href="#" class="text-[11px] tracking-[0.08em] uppercase hover:text-amber-light transition-colors relative group">Docs<span class="absolute bottom-0 left-0 w-0 h-px bg-amber-light group-hover:w-full transition-all duration-300"></span></a></li>
+      <li><a href="#" class="text-[11px] tracking-[0.08em] uppercase hover:text-amber-light transition-colors relative group">License<span class="absolute bottom-0 left-0 w-0 h-px bg-amber-light group-hover:w-full transition-all duration-300"></span></a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+// ── AOS Init ──
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof AOS !== 'undefined') {
+    AOS.init({ once: true, duration: 600, easing: 'ease-out' });
+  }
+});
+
+// ── Waveform bars ──
+const wf = document.getElementById('waveform');
+if (wf) {
+  const fillers = new Set([8,9,10,22,23,30,31,32,45,46,55,56,57]);
+  for (let i = 0; i < 80; i++) {
+    const h = Math.random() * 0.72 + 0.15;
+    const bar = document.createElement('div');
+    bar.className = 'bar flex-1 rounded-[1px] opacity-60';
+    bar.style.height = '4%';
+    bar.style.background = fillers.has(i) ? '#9B2B1A' : '#C8860A';
+    if (fillers.has(i)) bar.style.opacity = '0.3';
+    bar.style.animationDelay = (Math.random() * 2) + 's';
+    bar.style.animationDuration = (1.8 + Math.random() * 0.8) + 's';
+    bar.dataset.h = (h * 100) + '%';
+    wf.appendChild(bar);
+  }
+
+  const wfObs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        wf.querySelectorAll('.bar').forEach((b, i) => {
+          setTimeout(() => { b.style.transition = 'height 0.6s ease'; b.style.height = b.dataset.h; }, i * 8);
+        });
+        wfObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  wfObs.observe(wf);
+}
+
+// ── Count-up ──
+function countUp(el, target, suffix = '') {
+  let v = 0;
+  const step = target / 75;
+  const timer = setInterval(() => {
+    v = Math.min(v + step, target);
+    el.textContent = Math.floor(v) + suffix;
+    if (v >= target) clearInterval(timer);
+  }, 16);
+}
+const countObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('.count-up').forEach(el => {
+        countUp(el, parseInt(el.dataset.target), el.dataset.suffix || '');
+      });
+      countObs.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.grid.grid-cols-3').forEach(el => countObs.observe(el));
+
+// ── Pipeline line animation ──
+const plObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const line = document.getElementById('pipeline-line');
+      if (line) setTimeout(() => line.classList.add('active'), 300);
+      plObs.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.2 });
+const plTrack = document.getElementById('pipeline-track');
+if (plTrack) plObs.observe(plTrack);
+</script>
+</body>
+</html>

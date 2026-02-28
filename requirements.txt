@@ -1,4 +1,4 @@
-# optmpx 依赖
+# CleanCut 依赖
 
 # LLM 客户端 (DeepSeek-V3 使用 OpenAI 兼容接口)
 openai
@@ -14,5 +14,7 @@ scipy
 # 本地 Whisper 转录 (推荐)
 faster-whisper
 
-# (可选) 如果需要 Anthropic Claude
-# anthropic
+# Web 服务器
+fastapi
+uvicorn[standard]
+python-multipart
