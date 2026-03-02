@@ -227,9 +227,37 @@ tailwind.config = {
     </div>
 
     <div id="pipeline-track" class="grid grid-cols-3 md:grid-cols-6 gap-y-10 relative">
-      <!-- Connecting line (desktop) -->
-      <div class="hidden md:block absolute top-[35px] left-[8.33%] right-[8.33%] h-px bg-amber/25"></div>
-      <div class="hidden md:block absolute top-[35px] left-[8.33%] h-px bg-gradient-to-r from-amber to-amber-light pipeline-line-anim" id="pipeline-line"></div>
+      <!-- Connecting arrows (desktop) - positioned between boxes -->
+      <div class="hidden md:block absolute top-[35px] left-[14.5%] w-[4.5%]" data-arrow="1">
+        <svg class="w-full h-3 opacity-0 transition-opacity duration-500" id="arrow-1" viewBox="0 0 60 12" fill="none">
+          <line x1="0" y1="6" x2="52" y2="6" stroke="#C8860A" stroke-width="1.5" stroke-dasharray="2 2"/>
+          <path d="M52 6L56 3L60 6L56 9L52 6Z" fill="#E8A830"/>
+        </svg>
+      </div>
+      <div class="hidden md:block absolute top-[35px] left-[30.8%] w-[4.5%]" data-arrow="2">
+        <svg class="w-full h-3 opacity-0 transition-opacity duration-500" id="arrow-2" viewBox="0 0 60 12" fill="none">
+          <line x1="0" y1="6" x2="52" y2="6" stroke="#C8860A" stroke-width="1.5" stroke-dasharray="2 2"/>
+          <path d="M52 6L56 3L60 6L56 9L52 6Z" fill="#E8A830"/>
+        </svg>
+      </div>
+      <div class="hidden md:block absolute top-[35px] left-[47.2%] w-[4.5%]" data-arrow="3">
+        <svg class="w-full h-3 opacity-0 transition-opacity duration-500" id="arrow-3" viewBox="0 0 60 12" fill="none">
+          <line x1="0" y1="6" x2="52" y2="6" stroke="#C8860A" stroke-width="1.5" stroke-dasharray="2 2"/>
+          <path d="M52 6L56 3L60 6L56 9L52 6Z" fill="#E8A830"/>
+        </svg>
+      </div>
+      <div class="hidden md:block absolute top-[35px] left-[63.5%] w-[4.5%]" data-arrow="4">
+        <svg class="w-full h-3 opacity-0 transition-opacity duration-500" id="arrow-4" viewBox="0 0 60 12" fill="none">
+          <line x1="0" y1="6" x2="52" y2="6" stroke="#C8860A" stroke-width="1.5" stroke-dasharray="2 2"/>
+          <path d="M52 6L56 3L60 6L56 9L52 6Z" fill="#E8A830"/>
+        </svg>
+      </div>
+      <div class="hidden md:block absolute top-[35px] left-[79.8%] w-[4.5%]" data-arrow="5">
+        <svg class="w-full h-3 opacity-0 transition-opacity duration-500" id="arrow-5" viewBox="0 0 60 12" fill="none">
+          <line x1="0" y1="6" x2="52" y2="6" stroke="#C8860A" stroke-width="1.5" stroke-dasharray="2 2"/>
+          <path d="M52 6L56 3L60 6L56 9L52 6Z" fill="#E8A830"/>
+        </svg>
+      </div>
 
       <div class="flex flex-col items-center text-center px-2" data-aos="fade-up" data-aos-delay="0">
         <div class="w-[70px] h-[70px] border border-parchment-100/10 bg-parchment-100/[0.04] flex items-center justify-center mb-5 relative hover:border-amber hover:bg-amber/[0.08] hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(200,134,10,0.12)] transition-all group">
@@ -512,12 +540,19 @@ const countObs = new IntersectionObserver(entries => {
 }, { threshold: 0.5 });
 document.querySelectorAll('.grid.grid-cols-3').forEach(el => countObs.observe(el));
 
-// ── Pipeline line animation ──
+// ── Pipeline arrows animation ──
 const plObs = new IntersectionObserver(entries => {
   entries.forEach(e => {
     if (e.isIntersecting) {
-      const line = document.getElementById('pipeline-line');
-      if (line) setTimeout(() => line.classList.add('active'), 300);
+      // Animate arrows sequentially
+      for (let i = 1; i <= 5; i++) {
+        const arrow = document.getElementById(`arrow-${i}`);
+        if (arrow) {
+          setTimeout(() => {
+            arrow.style.opacity = '1';
+          }, 300 + (i - 1) * 200);
+        }
+      }
       plObs.unobserve(e.target);
     }
   });
